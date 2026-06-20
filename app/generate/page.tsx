@@ -38,23 +38,31 @@ function GenerateContent() {
   const [generating,  setGenerating]  = useState(false)
   const [specError,   setSpecError]   = useState<string | null>(null)
   const [genError,    setGenError]    = useState<string | null>(null)
+  const [loadError,   setLoadError]   = useState(false)
+  const [loading,     setLoading]     = useState(true)
 
-  useEffect(() => {
-    Promise.allSettled([
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setLoadError(false)
+    const [pRes, tRes] = await Promise.allSettled([
       iconicApi.listProjects(),
       iconicApi.listAssetTypes(),
-    ]).then(([pRes, tRes]) => {
-      if (pRes.status === 'fulfilled') {
-        const list: Project[] = pRes.value.data
-        setProjects(list)
-        const preselect = searchParams.get('project')
-        if (preselect && list.find(p => p.id === preselect)) {
-          setPid(preselect); setStep(2)
-        }
+    ])
+    if (pRes.status === 'fulfilled') {
+      const list: Project[] = pRes.value.data
+      setProjects(list)
+      const preselect = searchParams.get('project')
+      if (preselect && list.find(p => p.id === preselect)) {
+        setPid(preselect); setStep(2)
       }
-      if (tRes.status === 'fulfilled') setAssetTypes(tRes.value.data)
-    })
+    } else {
+      setLoadError(true)
+    }
+    if (tRes.status === 'fulfilled') setAssetTypes(tRes.value.data)
+    setLoading(false)
   }, [searchParams])
+
+  useEffect(() => { loadData() }, [loadData])
 
   const loadHistory = useCallback(async (id: string) => {
     if (!id) { setHistory([]); return }
@@ -114,8 +122,21 @@ function GenerateContent() {
             {/* Step 1: Project */}
             <div className="space-y-2">
               <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Step 1 — Project</p>
-              {projects.length === 0 ? (
-                <p className="text-xs text-zinc-600 italic">No projects yet.</p>
+              {loading ? (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-500/30 border-t-amber-500 animate-spin flex-shrink-0" />
+                  <span className="text-xs text-zinc-600">Loading…</span>
+                </div>
+              ) : loadError ? (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2.5 space-y-2">
+                  <p className="text-xs text-red-400">Could not load projects. The API may be temporarily unavailable.</p>
+                  <button onClick={loadData} className="text-[10px] font-semibold text-amber-400 hover:text-amber-300 transition-colors">Retry →</button>
+                </div>
+              ) : projects.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 border-dashed px-3 py-3 text-center space-y-2">
+                  <p className="text-xs text-zinc-600">No projects yet.</p>
+                  <a href="/projects" className="text-[10px] font-semibold text-amber-400 hover:text-amber-300 transition-colors">Create a project →</a>
+                </div>
               ) : projects.map(p => (
                 <button key={p.id} onClick={() => { setPid(p.id); setStep(2) }}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${pid === p.id ? 'bg-amber-500/15 border border-amber-500/40 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-zinc-700'}`}>

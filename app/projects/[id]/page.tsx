@@ -56,11 +56,12 @@ function toPayload(f: ReturnType<typeof empty>) {
   }
 }
 
-function Field({ label, value, onChange, placeholder, area }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; area?: boolean }) {
+function Field({ label, hint, value, onChange, placeholder, area }: { label: string; hint?: string; value: string; onChange: (v: string) => void; placeholder?: string; area?: boolean }) {
   const cls = "w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60 transition-colors"
   return (
     <div>
-      <label className="block text-xs font-medium text-zinc-400 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-zinc-400 mb-0.5">{label}</label>
+      {hint && <p className="text-[10px] text-zinc-600 mb-1.5 leading-relaxed">{hint}</p>}
       {area ? (
         <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={2} className={`${cls} resize-none`} />
       ) : (
@@ -70,10 +71,11 @@ function Field({ label, value, onChange, placeholder, area }: { label: string; v
   )
 }
 
-function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+function ColorField({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-zinc-400 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-zinc-400 mb-0.5">{label}</label>
+      {hint && <p className="text-[10px] text-zinc-600 mb-1.5 leading-relaxed">{hint}</p>}
       <div className="flex items-center gap-2">
         <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)} className="w-9 h-9 rounded-lg border border-zinc-700 bg-zinc-800 cursor-pointer p-0.5" />
         <input value={value} onChange={e => onChange(e.target.value)} placeholder="#2563EB" className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60 font-mono" />
@@ -98,13 +100,37 @@ function Toggle({ label, desc, checked, onChange }: { label: string; desc?: stri
   )
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({ title, addon, addonOpen, onToggleAddon, children, addonChildren }: {
+  title: string
+  addon?: string
+  addonOpen?: boolean
+  onToggleAddon?: () => void
+  children: React.ReactNode
+  addonChildren?: React.ReactNode
+}) {
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
       <div className="px-5 py-3 border-b border-zinc-800/60">
         <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{title}</h3>
       </div>
       <div className="px-5 py-4 space-y-4">{children}</div>
+      {addon && (
+        <div className="border-t border-zinc-800/60">
+          <button
+            type="button"
+            onClick={onToggleAddon}
+            className="w-full px-5 py-2.5 flex items-center justify-between text-left hover:bg-zinc-800/40 transition-colors"
+          >
+            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">{addon}</span>
+            <svg className={`w-3.5 h-3.5 text-zinc-600 transition-transform ${addonOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {addonOpen && (
+            <div className="px-5 pb-4 space-y-4">{addonChildren}</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -122,6 +148,8 @@ export default function ProjectPage() {
   const [saved,     setSaved]     = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [tab,       setTab]       = useState<'editor' | 'generate'>('editor')
+  const [addons,    setAddons]    = useState({ identity: false, colors: false, style: false, materials: false, composition: false })
+  function toggleAddon(k: keyof typeof addons) { setAddons(prev => ({ ...prev, [k]: !prev[k] })) }
 
   const hasDNA = Boolean(project?.brand_dna)
 
@@ -246,27 +274,22 @@ export default function ProjectPage() {
                 </div>
               )}
 
-              <Card title="1 · Brand Identity">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Industry" value={form.industry} onChange={set('industry') as (v: string) => void} placeholder="e.g. Pet Care, Gaming, SaaS" />
-                  <Field label="Theme" value={form.theme} onChange={set('theme') as (v: string) => void} placeholder="e.g. Warmth / Trust / Joy" />
-                </div>
-              </Card>
-
-              <Card title="2 · Colors">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <ColorField label="Primary"   value={form.primary_color}   onChange={set('primary_color')   as (v: string) => void} />
-                  <ColorField label="Secondary" value={form.secondary_color} onChange={set('secondary_color') as (v: string) => void} />
-                  <ColorField label="Accent"    value={form.accent_color}    onChange={set('accent_color')    as (v: string) => void} />
-                </div>
-              </Card>
-
-              <Card title="3 · Style">
-                <Field label="Visual Style" value={form.style} onChange={set('style') as (v: string) => void} placeholder="e.g. Flat design with subtle depth shadows" area />
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Shape Language" value={form.shape_language} onChange={set('shape_language') as (v: string) => void} placeholder="e.g. Rounded rectangles, soft corners" />
+              <Card
+                title="1 · Brand Identity"
+                addon="Optional — Audience &amp; Tone"
+                addonOpen={addons.identity}
+                onToggleAddon={() => toggleAddon('identity')}
+                addonChildren={<>
+                  <Field
+                    label="Shape Language"
+                    hint="How your brand expresses itself through forms — curved and soft feels approachable, angular and geometric feels technical or aggressive."
+                    value={form.shape_language}
+                    onChange={set('shape_language') as (v: string) => void}
+                    placeholder="e.g. Curved, shield-like with radial symmetry"
+                  />
                   <div>
-                    <label className="block text-xs font-medium text-zinc-400 mb-1">Complexity</label>
+                    <label className="block text-xs font-medium text-zinc-400 mb-0.5">Complexity</label>
+                    <p className="text-[10px] text-zinc-600 mb-1.5">Controls how many layers of detail the AI renders. Low = minimal single-weight icon. High = ornate, multi-layer graphic.</p>
                     <select value={form.complexity_level} onChange={e => set('complexity_level')(e.target.value)}
                       className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/60">
                       <option value="">Select…</option>
@@ -275,36 +298,137 @@ export default function ProjectPage() {
                       <option value="high">High — rich, ornate</option>
                     </select>
                   </div>
+                </>}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field
+                    label="Industry"
+                    hint="The market sector your brand operates in. Controls iconography vocabulary and design conventions — gaming implies aggression and fantasy; healthcare implies softness and trust."
+                    value={form.industry}
+                    onChange={set('industry') as (v: string) => void}
+                    placeholder="e.g. Pet Care, Gaming, SaaS"
+                  />
+                  <Field
+                    label="Theme"
+                    hint="The emotional character of your brand. Sets overall mood, saturation, and sensibility — 'Luxury / Premium Fantasy' produces rich, detailed, high-contrast assets."
+                    value={form.theme}
+                    onChange={set('theme') as (v: string) => void}
+                    placeholder="e.g. Warmth / Trust / Joy"
+                  />
                 </div>
               </Card>
 
-              <Card title="4 · Materials & Lighting">
-                <Field label="Material Style" value={form.material_style} onChange={set('material_style') as (v: string) => void} placeholder="e.g. Flat matte with 1dp elevation shadow" area />
-                <Field label="Lighting Style" value={form.lighting_style} onChange={set('lighting_style') as (v: string) => void} placeholder="e.g. Soft flat uniform — no harsh directional shadows" area />
-              </Card>
-
-              <Card title="5 · Composition Rules">
-                <Field label="Symmetry Rule"   value={form.symmetry_rule}   onChange={set('symmetry_rule')   as (v: string) => void} placeholder="e.g. Bilateral symmetry required" area />
-                <Field label="Silhouette Rule" value={form.silhouette_rule} onChange={set('silhouette_rule') as (v: string) => void} placeholder="e.g. Crisp geometric silhouette at 16×16" area />
-                <Field label="Background Rule" value={form.background_rule} onChange={set('background_rule') as (v: string) => void} placeholder="e.g. Transparent always for navigation icons" area />
-              </Card>
-
-              <Card title="6 · Size Constraints">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <Field label="Nav Icon" value={form.navigation_icon_size} onChange={set('navigation_icon_size') as (v: string) => void} placeholder="24x24" />
-                  <Field label="Glyph"    value={form.glyph_size}           onChange={set('glyph_size')           as (v: string) => void} placeholder="16x16" />
-                  <Field label="Badge"    value={form.badge_size}           onChange={set('badge_size')           as (v: string) => void} placeholder="48x48" />
-                  <Field label="App Icon" value={form.app_icon_size}        onChange={set('app_icon_size')        as (v: string) => void} placeholder="1024x1024" />
+              <Card
+                title="2 · Colors"
+                addon="Optional — Lighting &amp; Atmosphere"
+                addonOpen={addons.colors}
+                onToggleAddon={() => toggleAddon('colors')}
+                addonChildren={<>
+                  <Field
+                    label="Lighting Style"
+                    hint="Controls how light interacts with icon surfaces. 'Dramatic top-down with gold rim lighting' adds depth and luxury. 'Soft flat uniform' keeps it clean and app-store friendly."
+                    value={form.lighting_style}
+                    onChange={set('lighting_style') as (v: string) => void}
+                    placeholder="e.g. Dramatic top-down with gold rim lighting and specular highlights"
+                    area
+                  />
+                </>}
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <ColorField
+                    label="Primary"
+                    hint="The dominant color applied to the main icon element. Drives first visual impression."
+                    value={form.primary_color}
+                    onChange={set('primary_color') as (v: string) => void}
+                  />
+                  <ColorField
+                    label="Secondary"
+                    hint="Background or shadow layer. Usually dark or neutral — pairs with Primary to define contrast."
+                    value={form.secondary_color}
+                    onChange={set('secondary_color') as (v: string) => void}
+                  />
+                  <ColorField
+                    label="Accent"
+                    hint="Used for highlights, badge borders, glow effects, and small decorative elements."
+                    value={form.accent_color}
+                    onChange={set('accent_color') as (v: string) => void}
+                  />
                 </div>
               </Card>
 
-              <Card title="7 · Generation Rules">
+              <Card
+                title="3 · Style"
+                addon="Optional — Materials &amp; Surface"
+                addonOpen={addons.style}
+                onToggleAddon={() => toggleAddon('style')}
+                addonChildren={<>
+                  <Field
+                    label="Material Style"
+                    hint="What the icon surface is made of — affects texture and realism. 'Polished gold, obsidian, gemstone inlay' produces a premium collectible feel. 'Flat matte' keeps it clean for app UIs."
+                    value={form.material_style}
+                    onChange={set('material_style') as (v: string) => void}
+                    placeholder="e.g. Polished gold, obsidian, gemstone inlay"
+                    area
+                  />
+                </>}
+              >
+                <Field
+                  label="Visual Style"
+                  hint="The overall rendering approach. Flat = crisp, 2D app icons. Skeuomorphic = realistic materials. Illustrated = hand-drawn. Isometric = 3D-projected. This single field has the biggest impact on asset look."
+                  value={form.style}
+                  onChange={set('style') as (v: string) => void}
+                  placeholder="e.g. Skeuomorphic with premium materials"
+                  area
+                />
+              </Card>
+
+              <Card
+                title="4 · Composition Rules"
+                addon="Optional — Size Constraints"
+                addonOpen={addons.composition}
+                onToggleAddon={() => toggleAddon('composition')}
+                addonChildren={<>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <Field label="Nav Icon" hint="Target px size for navigation icons." value={form.navigation_icon_size} onChange={set('navigation_icon_size') as (v: string) => void} placeholder="24x24" />
+                    <Field label="Glyph"    hint="Target px size for inline glyphs." value={form.glyph_size} onChange={set('glyph_size') as (v: string) => void} placeholder="16x16" />
+                    <Field label="Badge"    hint="Target px size for achievement badges." value={form.badge_size} onChange={set('badge_size') as (v: string) => void} placeholder="48x48" />
+                    <Field label="App Icon" hint="Target px size for app store icons." value={form.app_icon_size} onChange={set('app_icon_size') as (v: string) => void} placeholder="1024x1024" />
+                  </div>
+                </>}
+              >
+                <Field
+                  label="Symmetry Rule"
+                  hint="Whether the design mirrors itself. Bilateral symmetry feels stable and iconic — great for logos. Asymmetry feels dynamic and modern."
+                  value={form.symmetry_rule}
+                  onChange={set('symmetry_rule') as (v: string) => void}
+                  placeholder="e.g. Bilateral symmetry required"
+                  area
+                />
+                <Field
+                  label="Silhouette Rule"
+                  hint="How recognizable the shape is at small sizes. A strong silhouette reads clearly at 16×16px. Critical for app icons and navigation."
+                  value={form.silhouette_rule}
+                  onChange={set('silhouette_rule') as (v: string) => void}
+                  placeholder="e.g. Crisp geometric silhouette readable at 16×16"
+                  area
+                />
+                <Field
+                  label="Background Rule"
+                  hint="What sits behind the icon element. Transparent keeps the asset flexible for any app surface. A colored background helps when the icon needs a distinct app identity."
+                  value={form.background_rule}
+                  onChange={set('background_rule') as (v: string) => void}
+                  placeholder="e.g. Transparent always for navigation icons"
+                  area
+                />
+              </Card>
+
+              <Card title="5 · Generation Rules">
                 <div className="space-y-3">
-                  <Toggle label="Transparent Background" desc="Always transparent for layering" checked={form.transparent_background} onChange={set('transparent_background') as (v: boolean) => void} />
-                  <Toggle label="No Text"    desc="Never embed text characters"    checked={form.no_text}    onChange={set('no_text')    as (v: boolean) => void} />
-                  <Toggle label="No Labels"  desc="No label overlays"              checked={form.no_labels}  onChange={set('no_labels')  as (v: boolean) => void} />
-                  <Toggle label="No Numbers" desc="No numeric characters"          checked={form.no_numbers} onChange={set('no_numbers') as (v: boolean) => void} />
-                  <Toggle label="Small Size Optimized" desc="Optimize for small display sizes" checked={form.small_size_optimized} onChange={set('small_size_optimized') as (v: boolean) => void} />
+                  <Toggle label="Transparent Background" desc="Asset renders on transparent canvas — required for icons that sit on any surface color." checked={form.transparent_background} onChange={set('transparent_background') as (v: boolean) => void} />
+                  <Toggle label="No Text"    desc="Never embed readable text characters — keeps assets scalable and locale-neutral." checked={form.no_text} onChange={set('no_text') as (v: boolean) => void} />
+                  <Toggle label="No Labels"  desc="No instructional label overlays baked into the asset." checked={form.no_labels} onChange={set('no_labels') as (v: boolean) => void} />
+                  <Toggle label="No Numbers" desc="No numeric characters — avoids assets that look date-stamped or versioned." checked={form.no_numbers} onChange={set('no_numbers') as (v: boolean) => void} />
+                  <Toggle label="Small Size Optimized" desc="Tells the AI to favor bold shapes with high contrast and minimal fine detail that would disappear at small sizes." checked={form.small_size_optimized} onChange={set('small_size_optimized') as (v: boolean) => void} />
                 </div>
               </Card>
 
