@@ -19,6 +19,16 @@ const CHECKER: React.CSSProperties = {
   backgroundSize: '20px 20px', backgroundPosition: '0 0,0 10px,10px -10px,-10px 0px',
 }
 
+const GEN_PHASES = [
+  { icon: '🧬', label: 'Reading Brand DNA',       detail: 'Parsing visual identity, constraints, and palette' },
+  { icon: '🏗️', label: 'Composing architecture',  detail: 'Structuring geometry, symmetry, and layout' },
+  { icon: '💎', label: 'Applying materials',       detail: 'Mapping surface textures, finishes, and depth' },
+  { icon: '💡', label: 'Setting up lighting',      detail: 'Placing sources, calculating specular highlights' },
+  { icon: '🎨', label: 'Rendering colors',         detail: 'Applying primary, secondary, and accent palette' },
+  { icon: '🖼️', label: 'Full resolution render',  detail: 'Generating 1024×1024 via Imagen 4' },
+  { icon: '✨', label: 'Finishing touches',        detail: 'Polishing details and validating output' },
+]
+
 function GenerateContent() {
   const searchParams = useSearchParams()
 
@@ -40,6 +50,22 @@ function GenerateContent() {
   const [genError,    setGenError]    = useState<string | null>(null)
   const [loadError,   setLoadError]   = useState(false)
   const [loading,     setLoading]     = useState(true)
+  const [genPhase,    setGenPhase]    = useState(0)
+  const [genElapsed,  setGenElapsed]  = useState(0)
+
+  useEffect(() => {
+    if (!generating) return
+    setGenPhase(0)
+    setGenElapsed(0)
+    const phaseMs = 2800
+    const phaseTimer = setInterval(() => {
+      setGenPhase(p => Math.min(p + 1, GEN_PHASES.length - 1))
+    }, phaseMs)
+    const elapsedTimer = setInterval(() => {
+      setGenElapsed(s => s + 1)
+    }, 1000)
+    return () => { clearInterval(phaseTimer); clearInterval(elapsedTimer) }
+  }, [generating])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -189,9 +215,14 @@ function GenerateContent() {
                 </div>
                 {genError && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{genError}</p>}
                 <button onClick={generate} disabled={generating}
-                  className="w-full py-2.5 rounded-xl text-xs font-bold text-zinc-900 disabled:opacity-40 transition-all"
-                  style={{ background: generating ? '#374151' : 'linear-gradient(135deg, #d97706, #f59e0b)', color: generating ? '#9ca3af' : '#1c1917' }}>
-                  {generating ? 'Generating…' : asset ? 'Regenerate' : 'Generate Asset'}
+                  className="w-full py-2.5 rounded-xl text-xs font-bold disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  style={{ background: generating ? '#1c1917' : 'linear-gradient(135deg, #d97706, #f59e0b)', color: generating ? '#f59e0b' : '#1c1917', border: generating ? '1px solid #92400e' : 'none' }}>
+                  {generating ? (
+                    <>
+                      <div className="w-3 h-3 rounded-full border-2 border-amber-700 border-t-amber-400 animate-spin flex-shrink-0" />
+                      <span className="truncate">{GEN_PHASES[genPhase]?.label ?? 'Generating…'}</span>
+                    </>
+                  ) : asset ? 'Regenerate' : 'Generate Asset'}
                 </button>
               </div>
             )}
@@ -200,7 +231,7 @@ function GenerateContent() {
 
         {/* Output panel */}
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {!selected ? (
+          {!selected && !generating ? (
             <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center">
                 <div className="text-4xl mb-3">⚡</div>
@@ -208,7 +239,71 @@ function GenerateContent() {
                 <p className="text-xs text-zinc-600 mt-1 max-w-xs">Choose a project, pick an asset type, describe it, and generate.</p>
               </div>
             </div>
-          ) : (
+          ) : generating ? (
+            /* ── Generation telemetry panel ── */
+            <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10">
+              <div className="w-full max-w-sm space-y-6">
+
+                {/* Header */}
+                <div className="text-center space-y-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 mb-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-widest">Forging</span>
+                  </div>
+                  <p className="text-base font-bold text-white">{selected?.title ?? 'Asset'}</p>
+                  <p className="text-xs text-zinc-500">{selected?.description}</p>
+                </div>
+
+                {/* Phase list */}
+                <div className="space-y-1">
+                  {GEN_PHASES.map((phase, i) => {
+                    const done    = i < genPhase
+                    const active  = i === genPhase
+                    const pending = i > genPhase
+                    return (
+                      <div key={i} className={`flex items-start gap-3 px-3 py-2.5 rounded-xl transition-all duration-500 ${active ? 'bg-zinc-800/70 border border-zinc-700' : 'border border-transparent'}`}>
+                        <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center mt-0.5">
+                          {done ? (
+                            <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : active ? (
+                            <div className="w-3.5 h-3.5 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
+                          ) : (
+                            <div className="w-2 h-2 rounded-full bg-zinc-700" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-xs font-medium transition-colors ${done ? 'text-zinc-500 line-through decoration-zinc-700' : active ? 'text-white' : 'text-zinc-700'}`}>
+                            {phase.icon} {phase.label}
+                          </p>
+                          {active && (
+                            <p className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">{phase.detail}</p>
+                          )}
+                        </div>
+                        {done && <span className="text-[9px] text-emerald-600 flex-shrink-0 mt-1">done</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Progress bar + timer */}
+                <div className="space-y-2">
+                  <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-600 to-amber-400 rounded-full transition-all duration-700"
+                      style={{ width: `${Math.min(100, ((genPhase + 0.5) / GEN_PHASES.length) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] text-zinc-600">{Math.round(((genPhase + 0.5) / GEN_PHASES.length) * 100)}% complete</p>
+                    <p className="text-[10px] text-zinc-600 tabular-nums">{genElapsed}s elapsed</p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          ) : selected ? (
             <div className="max-w-xl mx-auto px-4 sm:px-6 py-6 space-y-5 w-full">
               <div>
                 <div className="flex items-center gap-2 mb-1">
@@ -240,7 +335,7 @@ function GenerateContent() {
                     )}
                     <button onClick={generate} disabled={generating}
                       className="flex items-center gap-1.5 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 border border-zinc-700 rounded-xl text-xs font-medium text-zinc-300 transition-colors">
-                      {generating ? 'Regenerating…' : 'Regenerate'}
+                      Regenerate
                     </button>
                   </div>
                 </div>
@@ -252,7 +347,7 @@ function GenerateContent() {
                 </div>
               )}
             </div>
-          )}
+          ) : null}
         </div>
 
         {/* History sidebar (desktop only) */}
