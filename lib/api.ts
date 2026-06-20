@@ -41,7 +41,7 @@ export const iconicApi = {
   listRequests:    (pid: string) => api.get(`/iconic/projects/${pid}/assets`),
   createRequest:   (pid: string, data: object) => api.post(`/iconic/projects/${pid}/assets`, data),
   listGenerations: (pid: string, rid: string) => api.get(`/iconic/projects/${pid}/assets/${rid}/generations`),
-  generateAsset:   (pid: string, rid: string) => api.post(`/iconic/projects/${pid}/assets/${rid}/generate`, { provider: 'gemini' }),
+  generateAsset:   (pid: string, rid: string) => api.post(`/iconic/projects/${pid}/assets/${rid}/generate`, {}, { params: { provider: 'gemini' } }),
 
   // Orders
   listBundles:     () => api.get('/iconic/bundles'),
