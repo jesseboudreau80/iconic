@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import { iconicApi } from '@/lib/api'
 
-interface Project  { id: string; name: string }
+interface Project  { id: string; name: string; brand_dna?: { primary_color?: string; secondary_color?: string; accent_color?: string; style?: string; industry?: string } | null }
 interface AssetType { id: string; label: string }
 interface AssetRequest { id: string; project_id: string; asset_type: string; title: string; description: string; status: string; created_at: string; specification: object | null }
 interface GeneratedAsset { id: string; status: string; image_url: string | null; storage_path: string | null; created_at: string }
@@ -43,6 +43,10 @@ function GenerateContent() {
   const [atype,   setAtype]   = useState('')
   const [title,   setTitle]   = useState('')
   const [desc,    setDesc]    = useState('')
+  const [showOverride, setShowOverride] = useState(false)
+  const [overridePrimary,   setOverridePrimary]   = useState('')
+  const [overrideSecondary, setOverrideSecondary] = useState('')
+  const [overrideAccent,    setOverrideAccent]    = useState('')
 
   const [specifying,  setSpecifying]  = useState(false)
   const [generating,  setGenerating]  = useState(false)
@@ -105,15 +109,28 @@ function GenerateContent() {
       .catch(() => setAsset(null))
   }, [selected])
 
+  const activeDNA = projects.find(p => p.id === pid)?.brand_dna
+
   async function createSpec() {
-    if (!pid || !atype || !title.trim() || !desc.trim()) return
+    if (!pid || !atype || !title.trim()) return
     setSpecifying(true); setSpecError(null)
+    const colorOverrides = (overridePrimary || overrideSecondary || overrideAccent) ? {
+      primary_color:   overridePrimary   || undefined,
+      secondary_color: overrideSecondary || undefined,
+      accent_color:    overrideAccent    || undefined,
+    } : null
     try {
-      const r = await iconicApi.createRequest(pid, { asset_type: atype, title: title.trim(), description: desc.trim() })
+      const r = await iconicApi.createRequest(pid, {
+        asset_type:      atype,
+        title:           title.trim(),
+        description:     desc.trim() || title.trim(),
+        color_overrides: colorOverrides,
+      })
       const req = r.data as AssetRequest
       setSelected(req); setAsset(null)
       setHistory(prev => [req, ...prev])
       setTitle(''); setDesc('')
+      setShowOverride(false); setOverridePrimary(''); setOverrideSecondary(''); setOverrideAccent('')
     } catch (e: unknown) {
       setSpecError((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Specification failed.')
     } finally { setSpecifying(false) }
@@ -165,11 +182,38 @@ function GenerateContent() {
                 </div>
               ) : projects.map(p => (
                 <button key={p.id} onClick={() => { setPid(p.id); setStep(2) }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${pid === p.id ? 'bg-amber-500/15 border border-amber-500/40 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-zinc-700'}`}>
-                  {p.name}
+                  className={`w-full text-left px-3 py-2.5 rounded-xl text-xs transition-colors ${pid === p.id ? 'bg-amber-500/15 border border-amber-500/40 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-zinc-700'}`}>
+                  <span className="font-medium">{p.name}</span>
+                  {p.brand_dna && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {[p.brand_dna.primary_color, p.brand_dna.secondary_color, p.brand_dna.accent_color].filter(Boolean).map((c, i) => (
+                        <div key={i} className="w-3 h-3 rounded-full border border-zinc-700/50 flex-shrink-0" style={{ backgroundColor: c! }} />
+                      ))}
+                      {p.brand_dna.style && (
+                        <span className="text-[9px] text-zinc-600 truncate">{p.brand_dna.style.split(' ').slice(0, 3).join(' ')}</span>
+                      )}
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
+
+            {/* Brand DNA active badge — appears when project selected */}
+            {activeDNA && (
+              <div className="rounded-xl border border-emerald-800/40 bg-emerald-900/10 px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                  <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-widest">Brand DNA Active</p>
+                </div>
+                <p className="text-[10px] text-zinc-500 leading-relaxed">Colors, style, materials, and composition rules are locked in. You only need to name what to draw.</p>
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  {[activeDNA.primary_color, activeDNA.secondary_color, activeDNA.accent_color].filter(Boolean).map((c, i) => (
+                    <div key={i} className="w-4 h-4 rounded-md border border-zinc-700/50 flex-shrink-0" style={{ backgroundColor: c! }} />
+                  ))}
+                  {activeDNA.industry && <span className="text-[10px] text-zinc-600 ml-1">{activeDNA.industry}</span>}
+                </div>
+              </div>
+            )}
 
             {/* Step 2: Asset type */}
             <div className={`space-y-2 transition-opacity ${step < 2 ? 'opacity-30 pointer-events-none' : ''}`}>
@@ -185,21 +229,70 @@ function GenerateContent() {
               </div>
             </div>
 
-            {/* Step 3: Describe */}
+            {/* Step 3: Name the subject — not style, DNA handles that */}
             <div className={`space-y-3 transition-opacity ${step < 3 ? 'opacity-30 pointer-events-none' : ''}`}>
-              <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Step 3 — Describe</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">Step 3 — What to draw</p>
+              </div>
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 mb-1">Title</label>
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Short name"
+                <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">Subject</label>
+                <p className="text-[10px] text-zinc-700 mb-1.5">Just name what the icon represents — style, colors, and materials come from your Brand DNA automatically.</p>
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Bingo ball cage, Shield crest, Coin"
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60" />
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-zinc-500 mb-1">Description</label>
-                <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="Describe the visual concept…"
+                <label className="block text-[10px] font-medium text-zinc-500 mb-0.5">Extra detail <span className="text-zinc-700 font-normal">(optional)</span></label>
+                <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={2} placeholder="Any specific detail to include — e.g. 'gold trim, Las Vegas casino edition'"
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60 resize-none" />
               </div>
+
+              {/* Color override toggle */}
+              <div>
+                <button
+                  onClick={() => setShowOverride(v => !v)}
+                  className="flex items-center gap-1.5 text-[10px] font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <span className={`transition-transform ${showOverride ? 'rotate-90' : ''}`}>▶</span>
+                  Override colors for this asset type
+                </button>
+                {showOverride && (
+                  <div className="mt-2 space-y-2 pl-1">
+                    <p className="text-[9px] text-zinc-700 leading-relaxed">
+                      Overrides apply only to this asset — Brand DNA is unchanged. Useful for a glyph set with different palette from the main icon set.
+                    </p>
+                    {[
+                      { label: 'Primary', val: overridePrimary,   set: setOverridePrimary,   dna: activeDNA?.primary_color   },
+                      { label: 'Secondary', val: overrideSecondary, set: setOverrideSecondary, dna: activeDNA?.secondary_color },
+                      { label: 'Accent',  val: overrideAccent,    set: setOverrideAccent,    dna: activeDNA?.accent_color    },
+                    ].map(({ label, val, set, dna }) => (
+                      <div key={label} className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={val || dna || '#000000'}
+                          onChange={e => set(e.target.value)}
+                          className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border border-zinc-700 flex-shrink-0"
+                        />
+                        <div className="flex-1">
+                          <label className="block text-[9px] text-zinc-600">{label}</label>
+                          <input
+                            type="text"
+                            value={val}
+                            onChange={e => set(e.target.value)}
+                            placeholder={dna ?? '#000000'}
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] text-white placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/40"
+                          />
+                        </div>
+                        {val && (
+                          <button onClick={() => set('')} className="text-zinc-600 hover:text-zinc-400 text-[10px] flex-shrink-0">✕</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {specError && <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{specError}</p>}
-              <button onClick={createSpec} disabled={specifying || !title.trim() || !desc.trim()}
+              <button onClick={createSpec} disabled={specifying || !title.trim()}
                 className="w-full py-2.5 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 rounded-xl text-xs font-semibold text-white transition-colors">
                 {specifying ? 'Building Specification…' : 'Build Specification'}
               </button>
@@ -337,6 +430,12 @@ function GenerateContent() {
                       className="flex items-center gap-1.5 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 border border-zinc-700 rounded-xl text-xs font-medium text-zinc-300 transition-colors">
                       Regenerate
                     </button>
+                    {pid && (
+                      <a href={`/projects/${pid}/library`}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-zinc-900 border border-zinc-700 hover:border-zinc-600 rounded-xl text-xs font-medium text-zinc-400 transition-colors">
+                        View Library →
+                      </a>
+                    )}
                   </div>
                 </div>
               )}

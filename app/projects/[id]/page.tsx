@@ -253,6 +253,12 @@ export default function ProjectPage() {
               {t === 'editor' ? 'Brand DNA Editor' : 'Generate Assets'}
             </button>
           ))}
+          <button
+            onClick={() => router.push(`/projects/${projectId}/library`)}
+            className="px-4 py-3 text-xs font-medium border-b-2 border-transparent text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Library →
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
